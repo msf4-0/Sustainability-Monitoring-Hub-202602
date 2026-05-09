@@ -54,6 +54,7 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 
 ## Quickstart
 1. **Prerequisites**
+	- git
 	- Python 3.10+
 	- MySQL 8.x
 2. **Install dependencies**

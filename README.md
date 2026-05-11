@@ -54,6 +54,7 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 
 ## Quickstart
 1. **Prerequisites**
+	- git
 	- Python 3.10+
 	- MySQL 8.x
 2. **Install dependencies**
@@ -108,3 +109,18 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 - Most pages enforce company assignment/verification and role-based access before usage.
 - Reporting and verification workflows are integrated with cache-backed data access for performance.
 - Default factor dataset is bootstrapped via `python scripts/setup_ghg_factors.py`; you can then refine with custom factors per company.
+
+## Other beginner notes
+- When using Command Prompt (cmd) to start the application
+- Change directory first
+```bash
+"cd c:\Users\YOUR_USERNAME\YOUR_FOLDER_PATH\Sustainability-Monitoring-Hub-202602"
+```
+- Start the virtual environment
+```bash
+"c:\Users\YOUR_USERNAME\YOUR_FOLDER_PATH\Sustainability-Monitoring-Hub-202602\venv\Scripts\activate.bat"
+```
+- Then run the app
+```bash
+python -m streamlit run app/main.py
+```

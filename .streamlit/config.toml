@@ -13,9 +13,9 @@ toolbarMode = "viewer"
 
 
 [theme]
-base = "light"
-primaryColor = "#059669"               # Emerald-600
-backgroundColor = "#FFFFFF"            # White
-secondaryBackgroundColor = "#F3F4F6"   # Gray-100
-textColor = "#1F2937"                  # Gray-800
+base = "dark"
+primaryColor = "#22c55e"               # Emerald-400
+backgroundColor = "#0f172a"            # Slate-950
+secondaryBackgroundColor = "#111827"   # Slate-900
+textColor = "#e2e8f0"                  # Gray-200
 font = "sans serif"

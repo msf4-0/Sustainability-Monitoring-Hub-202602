@@ -275,8 +275,9 @@ class DatabaseSetup:
                     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                     INDEX idx_company_status (company_id, status),
                     INDEX idx_target_year (target_year)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Company emission reduction goals'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Company emission reduction goals'
             """,
+            #) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Company emission reduction goals'
             
             'reduction_initiatives': """
                 CREATE TABLE IF NOT EXISTS reduction_initiatives (
@@ -307,8 +308,9 @@ class DatabaseSetup:
                     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                     INDEX idx_company_status (company_id, status),
                     INDEX idx_dates (start_date, target_completion_date)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Emission reduction initiatives and action plans'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Emission reduction initiatives and action plans'
             """,
+            #) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Emission reduction initiatives and action plans'
             
             'initiative_progress': """
                 CREATE TABLE IF NOT EXISTS initiative_progress (
@@ -325,8 +327,9 @@ class DatabaseSetup:
                     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                     INDEX created_by (created_by),
                     INDEX idx_initiative_date (initiative_id, progress_date)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Progress tracking for reduction initiatives'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Progress tracking for reduction initiatives'
             """,
+            #) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Progress tracking for reduction initiatives'
             
             'initiative_documents': """
                 CREATE TABLE IF NOT EXISTS initiative_documents (
@@ -343,8 +346,9 @@ class DatabaseSetup:
                     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
                     INDEX uploaded_by (uploaded_by),
                     INDEX idx_initiative (initiative_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Supporting documents for initiatives'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Supporting documents for initiatives'
             """,
+            #) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Supporting documents for initiatives'
             
             'emissions_coverage': """
                 CREATE TABLE IF NOT EXISTS emissions_coverage (

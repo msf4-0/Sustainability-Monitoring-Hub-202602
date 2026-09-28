@@ -86,10 +86,16 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 	```bash
 	python scripts/bootstrap.py
 	```
-	`bootstrap.py` waits for the database, creates the schema
+	`bootstrap.py` waits for the database, then creates the database if it does
+	not already exist (`CREATE DATABASE IF NOT EXISTS`), creates the schema
 	(`setup_db.py`), seeds GHG factors (`setup_ghg_factors.py`), and repairs any
 	polluted JSON rows (`repair_json_persistence.py`).
 	Optional: `python scripts/setup_test_users.py`
+
+	> **Note:** step 4 (or a native server) must already be running. The scripts
+	> create the *database* automatically, but they cannot start a *server*. With
+	> the bundled Docker option, Compose creates both the server and the database
+	> (via `MARIADB_DATABASE`) on first boot.
 6. **Run app**
 	```bash
 	python -m streamlit run app/main.py
@@ -107,7 +113,45 @@ python scripts/repair_json_persistence.py --dry-run   # preview only
 If the SEDG Disclosure or ESG Ready Questionnaire pages report that data was
 not loaded even though responses exist, run the repair script above. Older
 versions persisted internal change-tracking keys inside the response JSON,
-which bloated rows and corrupted state on load. The repair is idempotent.
+which bloated rows and corrupted state on load. The repair is idempotent, so
+it is safe to run at any time (including on already-clean data).
+
+You do **not** need to reinstall or wipe anything to apply application fixes.
+Pull the branch, run the repair script, and restart the app.
+
+### Backup and restore
+The database lives in the Docker named volume `smh_mariadb_data`.
+
+```powershell
+# Back up (dump inside the container, then copy out to avoid shell encoding issues)
+docker exec smh-db sh -c 'mariadb-dump -uroot -padmin123 --databases ghg_emissions_calculator_db > /tmp/backup.sql'
+docker cp smh-db:/tmp/backup.sql .\smh_backup.sql
+
+# Restore
+docker cp .\smh_backup.sql smh-db:/tmp/backup.sql
+docker exec smh-db sh -c 'mariadb -uroot -padmin123 < /tmp/backup.sql'
+```
+
+### Resetting / clean reinstall
+⚠️ This deletes **all** data. Back up first (see above).
+
+```powershell
+# Stop and remove the container; the named volume is kept
+docker compose down
+
+# Remove the data volume (the destructive step)
+docker volume rm smh_mariadb_data
+# or, in one command: docker compose down -v
+
+# Rebuild from scratch
+docker compose up -d
+$env:PYTHONUTF8=1
+.\venv\Scripts\python.exe scripts\bootstrap.py
+```
+
+If `docker volume rm` reports the volume is in use, ensure no other container is
+attached. If it reports the volume was created outside Compose, that is expected
+for a pre-existing volume and the removal still works once the container is down.
 
 ## Main Streamlit Pages
 - `app/main.py` (entry/auth routing)

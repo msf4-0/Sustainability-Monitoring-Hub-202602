@@ -55,38 +55,59 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 ## Quickstart
 1. **Prerequisites**
 	- git
-	- Python 3.10+
-	- MySQL 8.x
+	- Python 3.12 (recommended; 3.14 is not supported by this dependency set) or 3.10+
+	- Docker Desktop (for the bundled database) **or** a native MySQL 8.x / MariaDB 11.x server
 2. **Install dependencies**
 	```bash
 	python -m venv venv
 	venv\Scripts\activate
 	pip install -r requirements.txt
 	```
-3. **Create `.env` in project root**
+3. **Create `.env` in project root** (see `.env.example`)
 	```bash
-	DB_HOST=localhost
+	DB_HOST=127.0.0.1
 	DB_PORT=3306
-	DB_USER=your_user
-	DB_PASSWORD=your_password
-	DB_NAME=ghg_db
+	DB_USER=root
+	DB_PASSWORD=admin123
+	DB_NAME=ghg_emissions_calculator_db
 	SECRET_KEY=replace_me
 	ENVIRONMENT=development
 	DEBUG=True
 	SESSION_TIMEOUT=3600
 	```
-4. **Initialize database and baseline data**
+	> With the bundled Docker database, `DB_PASSWORD` is also used as the MariaDB
+	> root password, so keep the two in sync.
+4. **Start the database** (bundled Docker option)
 	```bash
-	python scripts/setup_db.py
-	python scripts/setup_ghg_factors.py
-	python scripts/create_reduction_tables.py
-	# optional:
-	python scripts/setup_test_users.py
+	docker compose up -d
 	```
-5. **Run app**
+	Skip this step if you already run MySQL/MariaDB natively.
+5. **Initialize database and baseline data**
+	```bash
+	python scripts/bootstrap.py
+	```
+	`bootstrap.py` waits for the database, creates the schema
+	(`setup_db.py`), seeds GHG factors (`setup_ghg_factors.py`), and repairs any
+	polluted JSON rows (`repair_json_persistence.py`).
+	Optional: `python scripts/setup_test_users.py`
+6. **Run app**
 	```bash
 	python -m streamlit run app/main.py
 	```
+
+### Running the steps individually
+```bash
+python scripts/setup_db.py                 # create schema + seed base data
+python scripts/setup_ghg_factors.py        # seed GHG scopes/categories/sources
+python scripts/repair_json_persistence.py  # clean polluted SEDG/ESG JSON rows
+python scripts/repair_json_persistence.py --dry-run   # preview only
+```
+
+### Database maintenance
+If the SEDG Disclosure or ESG Ready Questionnaire pages report that data was
+not loaded even though responses exist, run the repair script above. Older
+versions persisted internal change-tracking keys inside the response JSON,
+which bloated rows and corrupted state on load. The repair is idempotent.
 
 ## Main Streamlit Pages
 - `app/main.py` (entry/auth routing)

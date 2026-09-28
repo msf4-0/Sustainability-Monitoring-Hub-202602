@@ -719,8 +719,15 @@ auto_save = SEDGAutoSave()
 auto_save.init_session_state()
 
 # Real-time change tracking (without forcing DB reload)
+# Exclude control/UI keys so state bookkeeping never masquerades as a form edit.
+SEDG_METADATA_KEYS = {
+    'sedg_last_snapshot', 'sedg_has_changes', 'sedg_last_save_time',
+    'sedg_save_status', 'sedg_initialized', 'sedg_form_loaded',
+    'sedg_loaded_context', 'sedg_force_refresh', 'sedg_period',
+}
 current_sedg_responses = {
-    k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')
+    k.replace('sedg_', ''): v for k, v in st.session_state.items()
+    if k.startswith('sedg_') and k not in SEDG_METADATA_KEYS
 }
 current_sedg_snapshot = json.dumps(current_sedg_responses, sort_keys=True, default=str)
 previous_sedg_snapshot = st.session_state.get('sedg_last_snapshot')
@@ -748,7 +755,8 @@ with col1:
             )
             if success:
                 st.session_state['sedg_last_snapshot'] = json.dumps(
-                    {k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')},
+                    {k.replace('sedg_', ''): v for k, v in st.session_state.items()
+                     if k.startswith('sedg_') and k not in SEDG_METADATA_KEYS},
                     sort_keys=True,
                     default=str
                 )
@@ -770,7 +778,8 @@ with col2:
                 if success:
                     st.session_state['sedg_has_changes'] = False
                     st.session_state['sedg_last_snapshot'] = json.dumps(
-                        {k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')},
+                        {k.replace('sedg_', ''): v for k, v in st.session_state.items()
+                         if k.startswith('sedg_') and k not in SEDG_METADATA_KEYS},
                         sort_keys=True,
                         default=str
                     )

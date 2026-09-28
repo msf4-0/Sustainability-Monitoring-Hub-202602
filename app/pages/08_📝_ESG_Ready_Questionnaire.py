@@ -174,6 +174,15 @@ if company_id:
 else:
     st.warning("⚠️ No company ID found in session state")
 
+# Auto-fill company identity from the companies table. These fields are shown
+# read-only in the form, so they must be populated here; otherwise the PDF
+# download validation (which requires them) can never pass. Applied after the
+# DB load so a stale/blank saved value cannot clobber the authoritative data.
+_company = get_company_info(st.session_state.get('company_id')) or {}
+if _company:
+    st.session_state['iesg_company_name'] = _company.get('company_name') or ''
+    st.session_state['iesg_email'] = _company.get('contact_email') or ''
+
 # Progress tracking
 def calculate_progress():
     """Calculate completion percentage"""
@@ -487,7 +496,7 @@ with tab2:
         "The Organization has a solid selected ESG programs in place across some elements of E, S and G",
         "The Organization has a comprehensive ESG program in place that covers appropriately and completely all areas of E, S and G that have been determined to the of importance to the Organization and its stakeholders based on the ESG strategy"
     ]
-    st.radio("Select one", options=elements, key='iesg_q15_esg_elements')
+    st.radio("Select one", options=elements, key='iesg_q15_esg_elements', index=None)
     
     st.divider()
     
@@ -499,7 +508,7 @@ with tab2:
         "The Organization has its external ESG reporting verified/audited by an external auditor",
         "The Organization has its public communications and reporting on ESG independently reviewed and verified by an external specialised company"
     ]
-    st.radio("Select one", options=validation, key='iesg_q16_validation')
+    st.radio("Select one", options=validation, key='iesg_q16_validation', index=None)
 
 # ============================================================================
 # SECTION C: ENVIRONMENT
@@ -1070,18 +1079,20 @@ st.header("📥 Actions & Download")
 auto_save = IESGAutoSave(st.session_state.get('company_id'), assessment_period="2024")
 
 # Collect all response data for saving
+# Metadata / control keys that must never be treated as questionnaire answers
+IESG_METADATA_KEYS = {
+    'iesg_initialized', 'iesg_responses_loaded', 'iesg_form_status',
+    'iesg_completion_score', 'iesg_unsaved_changes', 'iesg_last_save',
+    'iesg_auto_save_status', 'iesg_score', 'iesg_max_score', 'iesg_percentage',
+    'iesg_last_snapshot', 'iesg_loaded_context', 'iesg_force_refresh',
+}
+
 def get_all_iesg_responses():
     """Collect all iesg_* fields from session state, excluding metadata"""
     responses = {}
-    # List of metadata keys to exclude
-    metadata_keys = {
-        'iesg_initialized', 'iesg_responses_loaded', 'iesg_form_status', 
-        'iesg_completion_score', 'iesg_unsaved_changes', 'iesg_last_save', 
-        'iesg_auto_save_status', 'iesg_score', 'iesg_max_score', 'iesg_percentage'
-    }
-    
     for key, value in st.session_state.items():
-        if key.startswith('iesg_') and key not in metadata_keys and not key.startswith('iesg_responses_') and not key.startswith('iesg_unsaved_') and not key.startswith('iesg_form_'):
+        if (key.startswith('iesg_') and key not in IESG_METADATA_KEYS
+                and not key.startswith(('iesg_responses_', 'iesg_unsaved_', 'iesg_form_'))):
             # Remove the 'iesg_' prefix for database storage
             clean_key = key.replace('iesg_', '')
             responses[clean_key] = value

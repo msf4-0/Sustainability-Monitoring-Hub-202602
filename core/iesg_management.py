@@ -29,10 +29,14 @@ class IESGManager:
             self._db = DatabaseManager()
         self.cache_ttl = 3600  # 1 hour
     
-    @st.cache_data(ttl=3600, show_spinner=False)
-    def load_iesg_responses(_self, company_id: int, assessment_period: str = "2024") -> dict:
+    def load_iesg_responses(self, company_id: int, assessment_period: str = "2024") -> dict:
         """
-        Load IESG responses from database with caching.
+        Load IESG responses from database.
+
+        NOTE: This intentionally does NOT use @st.cache_data. Caching the
+        (company_id, assessment_period) lookup meant an empty/draft result was
+        cached before the first save and never invalidated afterwards, so the
+        form kept reporting "not loaded" even though the row existed in the DB.
         
         Args:
             company_id: Company ID
@@ -55,7 +59,7 @@ class IESGManager:
                 WHERE company_id = %s AND assessment_period = %s
                 LIMIT 1
             """
-            result = _self._db.fetch_one(query, (company_id, assessment_period))
+            result = self._db.fetch_one(query, (company_id, assessment_period))
             
             if result:
                 response_data = json.loads(result[0]) if isinstance(result[0], str) else result[0]
@@ -103,7 +107,22 @@ class IESGManager:
             ... )
         """
         try:
-            json_data = json.dumps(response_data)
+            # Strip any metadata keys that must never be persisted (e.g. the
+            # change-tracking snapshot and load-context marker). Without this
+            # the snapshot string is repeatedly embedded in its own next save,
+            # producing an exponentially growing response_data blob.
+            metadata_keys = {
+                'loaded_context', 'last_snapshot', 'responses_loaded',
+                'form_status', 'completion_score', 'unsaved_changes',
+                'last_save', 'auto_save_status', 'score', 'max_score',
+                'percentage', 'force_refresh', 'initialized',
+            }
+            clean_data = {
+                k: v for k, v in (response_data or {}).items()
+                if k not in metadata_keys and not k.startswith(('responses_', 'unsaved_', 'form_'))
+            }
+
+            json_data = json.dumps(clean_data, default=str)
             
             # Check if record exists
             check_query = """
@@ -411,9 +430,19 @@ def initialize_iesg_responses_session(company_id: int, assessment_period: str = 
         
         # Make sure loaded_data is not None and is a dict
         if loaded_data is not None and isinstance(loaded_data, dict):
+            # Ignore any non-questionnaire keys that older saves may have
+            # persisted (change-tracking snapshot, load context, UI status).
+            blocked = {
+                'loaded_context', 'last_snapshot', 'responses_loaded',
+                'form_status', 'unsaved_changes', 'last_save',
+                'auto_save_status', 'score', 'max_score', 'percentage',
+                'force_refresh', 'initialized',
+            }
             # SUCCESS: We have data from database
             # Force update ALL session state values with database data
             for key, value in loaded_data.items():
+                if key in blocked or key.startswith(('responses_', 'unsaved_', 'form_')):
+                    continue
                 session_key = f'iesg_{key}'
                 # CRITICAL: Always set the value, even if it's None, empty string, or empty list
                 st.session_state[session_key] = value

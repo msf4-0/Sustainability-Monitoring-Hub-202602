@@ -78,15 +78,25 @@ class SEDGManager:
     
     def get_sedg_changes(self) -> dict:
         """
-        Extract SEDG data from session state (only changed fields)
+        Extract SEDG data from session state (form fields only).
+
+        Control/UI keys (change-tracking snapshot, save state, load context,
+        etc.) are excluded so they are never persisted to ``sedg_data``. Leaking
+        the snapshot in particular caused the stored JSON to embed itself on
+        every save and grow exponentially.
         
         Returns:
-            dict: All sedg_* fields from session state
+            dict: All form ``sedg_*`` fields from session state
         """
+        metadata_keys = {
+            'sedg_last_snapshot', 'sedg_has_changes', 'sedg_last_save_time',
+            'sedg_save_status', 'sedg_initialized', 'sedg_form_loaded',
+            'sedg_loaded_context', 'sedg_force_refresh', 'sedg_period',
+        }
         return {
-            k.replace('sedg_', ''): v 
-            for k, v in st.session_state.items() 
-            if k.startswith('sedg_')
+            k.replace('sedg_', ''): v
+            for k, v in st.session_state.items()
+            if k.startswith('sedg_') and k not in metadata_keys
         }
     
     def save_sedg_data(self, company_id: int, disclosure_period: int, 
@@ -312,10 +322,16 @@ def initialize_sedg_form_session():
             loaded_data = SEDGManager.load_sedg_form(company_id, reporting_period)
             
             if loaded_data:
-                # Load saved data (but skip 'period' as it's bound to a widget)
+                # Load saved data, skipping keys bound to widgets or reserved
+                # for UI state (older saves may contain leaked control keys).
+                blocked = {
+                    'period', 'last_snapshot', 'has_changes', 'last_save_time',
+                    'save_status', 'initialized', 'form_loaded', 'loaded_context',
+                    'force_refresh',
+                }
                 sedg_data = loaded_data['data']
                 for key, value in sedg_data.items():
-                    if key != 'period':  # Skip period - it's already bound to selectbox widget
+                    if key not in blocked:
                         st.session_state[f'sedg_{key}'] = value
                 st.session_state['sedg_form_loaded'] = True
                 logger.info(f"Loaded SEDG from database for period {reporting_period}")

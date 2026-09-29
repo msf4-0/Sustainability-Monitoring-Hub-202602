@@ -123,10 +123,19 @@ cd C:\path\to\Sustainability-Monitoring-Hub-202602
 python -m streamlit run app/main.py
 ```
 
+### Upgrading an existing database
+`setup_db.py` only creates tables that don't exist yet; it never adds new columns to existing tables. If your database was created with an older version of the project, run these migrations (both are safe to run more than once):
+```powershell
+python verify_and_migrate_baseline.py             # adds companies.baseline_year (+ notes, set date, set by)
+python scripts\migrate_cosiri_file_content.py      # adds cosiri_documents.file_content for COSIRI uploads
+```
+
 ### Troubleshooting
 - **`Access denied for user 'root'@'localhost'`**: the MySQL credentials don't match. Make sure `.env` is saved, then check the password with `mysql -u root -p`. Also check that `DB_PASSWORD` isn't already set in your terminal (`$env:DB_PASSWORD` in PowerShell): values already in the environment take priority over `.env`. If it is set, open a new terminal.
 - **`ModuleNotFoundError`**: the virtual environment isn't active. Activate it (step 2) and try again.
 - **Port 8501 already in use**: another Streamlit instance is running. Stop it, or run with `--server.port 8502`.
+- **`Unknown column ... in 'field list'`** in the terminal: your database is older than the code. See [Upgrading an existing database](#upgrading-an-existing-database).
+- **`Please replace use_container_width with width`**: a harmless deprecation warning from Streamlit; the app works normally.
 
 ## Main Streamlit Pages
 - `app/main.py` (entry/auth routing)

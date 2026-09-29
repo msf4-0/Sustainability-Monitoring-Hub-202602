@@ -15,7 +15,10 @@ from core.permissions import check_page_permission, show_permission_badge
 from core.cache import get_company_info, get_emissions_summary, get_sedg_ghg_data
 from core.sedg_pdf import generate_sedg_pdf
 from components.company_verification import enforce_company_verification
-from core.sedg_management import SEDGAutoSave, initialize_sedg_form_session, show_sedg_unsaved_warning
+from core.sedg_management import (
+    SEDG_DEFAULTS, SEDGAutoSave, default_sedg_value,
+    initialize_sedg_form_session, show_sedg_unsaved_warning,
+)
 
 # Check permissions
 check_page_permission('07_📋_SEDG_Disclosure.py')
@@ -59,177 +62,24 @@ if st.session_state.pop('sedg_force_refresh', False):
     st.session_state.pop('sedg_loaded_context', None)
     st.session_state.pop('sedg_last_snapshot', None)
     st.session_state['sedg_has_changes'] = False
-    st.cache_data.clear()
 
-# Initialize session state with complete SEDG fields FIRST (before any widgets)
-def init_sedg():
-    prefix = 'sedg_'
-    defaults = {
-        # General Information
-        f'{prefix}period': str(datetime.now().year),
-        f'{prefix}entities_included': '',
-        f'{prefix}locations_included': '',
-        
-        # E1.1-E1.2 - GHG (auto-filled from system)
-        # E1.3-E1.4 - GHG Reduction
-        f'{prefix}e13_scope1_reduction': 0.0,
-        f'{prefix}e14_scope2_reduction': 0.0,
-        # E1.5 - Scope 3 Total
-        f'{prefix}e15_scope3_total': 0.0,
-        # E1.6 - Scope 3 Reduction
-        f'{prefix}e16_scope3_reduction': 0.0,
-        # E1.7 - GHG Intensity
-        f'{prefix}e17_intensity': 0.0,
-        
-        # E2.1 - Energy Consumption (Basic)
-        f'{prefix}e21_renewable': 0.0,
-        f'{prefix}e21_nonrenewable': 0.0,
-        f'{prefix}e21_electricity': 0.0,
-        f'{prefix}e21_heating': 0.0,
-        f'{prefix}e21_cooling': 0.0,
-        f'{prefix}e21_steam': 0.0,
-        
-        # E2.2 - Energy Consumption Reduction (Intermediate)
-        f'{prefix}e22_renewable_reduction': 0.0,
-        f'{prefix}e22_nonrenewable_reduction': 0.0,
-        f'{prefix}e22_electricity_reduction': 0.0,
-        f'{prefix}e22_heating_reduction': 0.0,
-        f'{prefix}e22_cooling_reduction': 0.0,
-        f'{prefix}e22_steam_reduction': 0.0,
-        
-        # E3.1 - Total Water Withdrawn (Basic)
-        f'{prefix}e31_purchased': 0.0,
-        f'{prefix}e31_surface': 0.0,
-        f'{prefix}e31_ground': 0.0,
-        f'{prefix}e31_sea': 0.0,
-        f'{prefix}e31_produced': 0.0,
-        
-        # E3.2 - Water Reduction (Intermediate)
-        f'{prefix}e32_reduction': 0.0,
-        
-        # E4.1 - Total Waste (Basic)
-        f'{prefix}e41_generated': 0.0,
-        f'{prefix}e41_diverted': 0.0,
-        f'{prefix}e41_disposed': 0.0,
-        
-        # E4.2 - Waste Breakdown (Intermediate)
-        f'{prefix}e42_haz_gen': 0.0,
-        f'{prefix}e42_haz_div': 0.0,
-        f'{prefix}e42_haz_disp': 0.0,
-        f'{prefix}e42_nonhaz_gen': 0.0,
-        f'{prefix}e42_nonhaz_div': 0.0,
-        f'{prefix}e42_nonhaz_disp': 0.0,
-        f'{prefix}e42_sector_gen': 0.0,
-        f'{prefix}e42_sector_div': 0.0,
-        f'{prefix}e42_sector_disp': 0.0,
-        f'{prefix}e42_material_gen': 0.0,
-        f'{prefix}e42_material_div': 0.0,
-        f'{prefix}e42_material_disp': 0.0,
-        
-        # E4.3 - Waste Diversion Methods (Advanced)
-        f'{prefix}e43_haz_reuse': 0.0,
-        f'{prefix}e43_haz_recycle': 0.0,
-        f'{prefix}e43_haz_recovery': 0.0,
-        f'{prefix}e43_nonhaz_reuse': 0.0,
-        f'{prefix}e43_nonhaz_recycle': 0.0,
-        f'{prefix}e43_nonhaz_recovery': 0.0,
-        
-        # E4.4 - Waste Disposal Methods (Advanced)
-        f'{prefix}e44_haz_incin_recovery': 0.0,
-        f'{prefix}e44_haz_incin_no_recovery': 0.0,
-        f'{prefix}e44_haz_landfill': 0.0,
-        f'{prefix}e44_haz_other': 0.0,
-        f'{prefix}e44_nonhaz_incin_recovery': 0.0,
-        f'{prefix}e44_nonhaz_incin_no_recovery': 0.0,
-        f'{prefix}e44_nonhaz_landfill': 0.0,
-        f'{prefix}e44_nonhaz_other': 0.0,
-        
-        # E5.1 - Materials (Basic)
-        f'{prefix}e51_materials': '',
-        # E5.2 - Recycled Materials (Advanced)
-        f'{prefix}e52_recycled_pct': 0.0,
-        
-        # S1.1 - Child & Forced Labour Incidents (Basic)
-        f'{prefix}s11_child_incidents': 0,
-        f'{prefix}s11_child_nature': '',
-        f'{prefix}s11_forced_incidents': 0,
-        f'{prefix}s11_forced_nature': '',
-        
-        # S1.2 - Risk of Child & Forced Labour (Intermediate)
-        f'{prefix}s12_child_risk_ops': '',
-        f'{prefix}s12_forced_risk_ops': '',
-        
-        # S2.1 - Training (Basic)
-        f'{prefix}s21_training_hours': 0.0,
-        
-        # S2.2 - Employee Data (Intermediate)
-        f'{prefix}s22_num_employees': 0,
-        f'{prefix}s22_turnover': 0.0,
-        
-        # S2.3 - Minimum Wage (Basic)
-        f'{prefix}s23_min_wage_pct': 0.0,
-        
-        # S3.1 - Diversity - Employees (Basic)
-        f'{prefix}s31_emp_female': 0.0,
-        f'{prefix}s31_emp_age': '',
-        
-        # S3.2 - Diversity - Directors (Intermediate)
-        f'{prefix}s32_dir_female': 0.0,
-        f'{prefix}s32_dir_age': '',
-        
-        # S4.1 - Health & Safety Incidents (Basic)
-        f'{prefix}s41_fatalities': 0,
-        f'{prefix}s41_injuries': 0,
-        
-        # S4.2 - H&S Training (Intermediate)
-        f'{prefix}s42_hs_trained_num': 0,
-        f'{prefix}s42_hs_trained_pct': 0.0,
-        
-        # S5.1 - Community Investment (Basic)
-        f'{prefix}s51_community_invest': 0.0,
-        
-        # S5.2 - Community Impact (Advanced)
-        f'{prefix}s52_negative_impact': '',
-        
-        # G1.1 - Board Composition (Basic)
-        f'{prefix}g11_num_directors': 0,
-        
-        # G1.2 - Governance Structure (Intermediate)
-        f'{prefix}g12_structure': '',
-        
-        # G2.1 - Policies (Basic)
-        f'{prefix}g21_policies': '',
-        
-        # G3.1 - Audit (Basic)
-        f'{prefix}g31_audit_year': datetime.now().year,
-        
-        # G3.2 - Operations Risks (Intermediate)
-        f'{prefix}g32_ops_risks': '',
-        
-        # G3.3 - Sustainability Risks (Advanced)
-        f'{prefix}g33_sustain_risks': '',
-        
-        # G4.1 - Corruption Incidents (Basic)
-        f'{prefix}g41_corrupt_incidents': 0,
-        f'{prefix}g41_corrupt_nature': '',
-        
-        # G4.2 - Anti-corruption Training (Intermediate)
-        f'{prefix}g42_anticorrupt_num': 0,
-        f'{prefix}g42_anticorrupt_pct': 0.0,
-        
-        # G4.3 - Corruption Risks (Advanced)
-        f'{prefix}g43_corrupt_risks': '',
-        
-        # G5.1 - Privacy (Intermediate)
-        f'{prefix}g51_privacy_complaints': 0,
-        f'{prefix}g51_privacy_nature': '',
-    }
-    
-    for key, val in defaults.items():
+# Copy of the form kept outside widget state. Streamlit deletes a widget's
+# session value on any run where the widget isn't rendered (e.g. while the user
+# is on another page), so without this copy the form would come back blank.
+ANSWERS_KEY = 'sedg_answers'
+
+def restore_sedg_answers():
+    """Restore any widget values Streamlit cleared, else use defaults"""
+    answers = st.session_state.get(ANSWERS_KEY, {})
+    if 'sedg_period' not in st.session_state:
+        st.session_state['sedg_period'] = answers.get('period', str(datetime.now().year))
+    for field in SEDG_DEFAULTS:
+        key = f'sedg_{field}'
         if key not in st.session_state:
-            st.session_state[key] = val
- 
-init_sedg()
+            st.session_state[key] = answers[field] if field in answers else default_sedg_value(field)
+
+# Restore the form (or defaults) FIRST, before the database load and any widgets
+restore_sedg_answers()
 
 company = get_company_info(st.session_state.company_id)
 if not company:
@@ -285,7 +135,7 @@ if st.session_state.get('sedg_form_loaded', False):
 else:
     st.info(
         "**New form** - This is a fresh SEDG disclosure form. "
-        "Your progress will be saved automatically.",
+        "Click **💾 Save SEDG Form** to save your progress.",
         icon="📝"
     )
     
@@ -719,9 +569,8 @@ auto_save = SEDGAutoSave()
 auto_save.init_session_state()
 
 # Real-time change tracking (without forcing DB reload)
-current_sedg_responses = {
-    k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')
-}
+current_sedg_responses = auto_save.manager.get_sedg_changes()
+st.session_state[ANSWERS_KEY] = current_sedg_responses
 current_sedg_snapshot = json.dumps(current_sedg_responses, sort_keys=True, default=str)
 previous_sedg_snapshot = st.session_state.get('sedg_last_snapshot')
 
@@ -730,6 +579,11 @@ if previous_sedg_snapshot is None:
 elif current_sedg_snapshot != previous_sedg_snapshot:
     st.session_state['sedg_has_changes'] = True
     st.session_state['sedg_last_snapshot'] = current_sedg_snapshot
+
+# Result of the last save, shown after the rerun that clears the unsaved warning
+save_message = st.session_state.pop('sedg_save_message', None)
+if save_message:
+    st.success(save_message)
 
 # Show unsaved warning if needed
 show_sedg_unsaved_warning()
@@ -746,15 +600,12 @@ with col1:
                 reporting_year=int(st.session_state.sedg_period.split('-')[0]),
                 user_id=st.session_state.user_id
             )
-            if success:
-                st.session_state['sedg_last_snapshot'] = json.dumps(
-                    {k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')},
-                    sort_keys=True,
-                    default=str
-                )
-                st.success("✅ SEDG form saved successfully!")
-            else:
-                st.error("❌ Failed to save SEDG form")
+        if success:
+            st.session_state['sedg_last_snapshot'] = current_sedg_snapshot
+            st.session_state['sedg_save_message'] = "✅ SEDG form saved successfully!"
+            st.rerun()
+        else:
+            st.error("❌ Failed to save SEDG form")
 
 with col2:
     if st.button("📤 Submit Disclosure", type="secondary", use_container_width=True):
@@ -768,26 +619,17 @@ with col2:
                     user_id=st.session_state.user_id
                 )
                 if success:
-                    st.session_state['sedg_has_changes'] = False
-                    st.session_state['sedg_last_snapshot'] = json.dumps(
-                        {k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')},
-                        sort_keys=True,
-                        default=str
-                    )
                     st.success("✅ SEDG disclosure submitted!")
                 else:
-                    st.error("❌ Failed to submit disclosure")
+                    st.error("❌ Failed to submit disclosure. Make sure the form has been saved first.")
         else:
             st.warning("⚠️ Please save your changes before submitting")
 
 with col3:
     if st.button("📥 Download PDF Report", type="secondary", use_container_width=True):
         try:
-            # Collect all data from session state
-            sedg_data = {k.replace('sedg_', ''): v for k, v in st.session_state.items() if k.startswith('sedg_')}
-            
             with st.spinner("Generating PDF..."):
-                pdf_buffer = generate_sedg_pdf(company, sedg_data, ghg_data, disclosure_date)
+                pdf_buffer = generate_sedg_pdf(company, current_sedg_responses, ghg_data, disclosure_date)
             
             filename = f"SEDG_Disclosure_{company['company_name'].replace(' ', '_')}_{reporting_period}.pdf"
             

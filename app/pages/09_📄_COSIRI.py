@@ -109,7 +109,7 @@ try:
                 """
                 
                 try:
-                    db.execute_query(
+                    saved = db.execute_query(
                         query,
                         (
                             st.session_state.company_id,
@@ -124,9 +124,12 @@ try:
                             notes if notes else None
                         )
                     )
-                    
-                    st.success(f"✅ Document uploaded successfully!")
-                    st.rerun()
+
+                    if saved:
+                        st.success(f"✅ Document uploaded successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Error uploading file. Please try again.")
                     
                 except Exception as e:
                     st.error(f"❌ Error uploading file: {str(e)}")

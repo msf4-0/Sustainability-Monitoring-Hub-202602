@@ -48,45 +48,85 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 - **Primary default source**: The baseline system emission factors are seeded by `scripts/setup_ghg_factors.py`, which documents and loads values based on **UK Government Greenhouse Gas Reporting: Conversion Factors 2025**.
 - **Schema alignment**: Factors are organized into Scope 1, Scope 2, and Scope 3 categories aligned with GHG Protocol in `docs/7_GHG_Protocol_Schema.md`.
 - **Coverage examples**: Fuel combustion, refrigerants/fugitive emissions, purchased electricity/heat, business travel, transport, waste, and other value-chain activities.
-- **Custom company factors**: Managers/admins can create company-specific custom sources in `app/pages/11_⚙️_Manage_Emission_Factors.py`.
+- **Custom company factors**: Managers/admins can create company-specific custom sources in `app/pages/06_⚙️_Manage_Emission_Factors.py`.
 - **Traceability fields**: The emission source model supports `data_source_reference`, `reference_year`, versioning, and history (`scripts/migrate_emission_factors.py`) to track where a factor came from and when it changed.
 - **Practical note**: You should periodically review and update factors for your jurisdiction and reporting year if local/national factors are preferred over UK defaults.
 
 ## Quickstart
+The commands below are for Windows PowerShell and assume you are inside the project folder (`Sustainability-Monitoring-Hub-202602`).
+
 1. **Prerequisites**
 	- git
-	- Python 3.10+
-	- MySQL 8.x
-2. **Install dependencies**
-	```bash
+	- Python 3.10+ (tested with 3.13)
+	- MySQL 8.x, installed and running
+2. **Create a virtual environment and install dependencies**
+	```powershell
 	python -m venv venv
-	venv\Scripts\activate
+	.\venv\Scripts\Activate.ps1
 	pip install -r requirements.txt
 	```
-3. **Create `.env` in project root**
+	- Your prompt should now start with `(venv)`.
+	- If PowerShell refuses to run `Activate.ps1`, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once and try again.
+	- In Command Prompt (cmd), activate with `venv\Scripts\activate.bat` instead.
+3. **Create `.env` in the project root**
+	```powershell
+	copy .env.example .env
+	```
+	Open `.env` and set `DB_USER` and `DB_PASSWORD` to your MySQL credentials. `DB_NAME` can be any name; `setup_db.py` creates the database if it does not exist.
 	```bash
-	DB_HOST=localhost
-	DB_PORT=3306
-	DB_USER=your_user
-	DB_PASSWORD=your_password
-	DB_NAME=ghg_db
-	SECRET_KEY=replace_me
 	ENVIRONMENT=development
-	DEBUG=True
+	SECRET_KEY=change-me
+
+	DB_HOST=127.0.0.1
+	DB_PORT=3306
+	DB_NAME=ghg_emissions_calculator_db
+	DB_USER=root
+	DB_PASSWORD=your-password
+	DB_SSL_DISABLED=true
+
+	# optional
+	DEBUG=False
 	SESSION_TIMEOUT=3600
 	```
-4. **Initialize database and baseline data**
-	```bash
-	python scripts/setup_db.py
-	python scripts/setup_ghg_factors.py
-	python scripts/create_reduction_tables.py
-	# optional:
-	python scripts/setup_test_users.py
+4. **Initialize the database (first time only)**
+	```powershell
+	python scripts\setup_db.py              # creates the database, all 16 tables and default logins
+	python scripts\setup_ghg_factors.py     # loads 150+ UK Gov 2025 emission factors
+	python scripts\test_db_connection.py    # optional: verify the connection
+	python scripts\setup_test_users.py      # optional: one test user per role
 	```
-5. **Run app**
-	```bash
+	- Both setup scripts are safe to re-run: they only add missing data. On a re-run, `setup_ghg_factors.py` prints `Duplicate entry` errors for factors that already exist; these are expected and the script reports them as skipped.
+	- Do **not** pass `--clear` to `setup_ghg_factors.py` unless you intend to delete all emission factors **and all emissions data**.
+	- `scripts/create_reduction_tables.py` is not needed; `setup_db.py` already creates the Roadmap Tracker tables.
+5. **Run the app**
+	```powershell
 	python -m streamlit run app/main.py
 	```
+	Open http://localhost:8501 and log in with one of the default accounts below.
+
+### Default logins
+| Username | Password | Role | Created by |
+|---|---|---|---|
+| `admin` | `admin123` | admin | `setup_db.py` |
+| `demouser` | `demo123` | manager | `setup_db.py` |
+| `testadmin` | `admin123` | admin | `setup_test_users.py` |
+| `testmanager` | `manager123` | manager | `setup_test_users.py` |
+| `testuser` | `user123` | normal_user | `setup_test_users.py` |
+
+All default accounts belong to **Test Company Ltd** (`TEST001`). Change or remove them before deploying anywhere public.
+
+### Running it again later
+After the first-time setup, you only need to activate the environment and start the app:
+```powershell
+cd C:\path\to\Sustainability-Monitoring-Hub-202602
+.\venv\Scripts\Activate.ps1
+python -m streamlit run app/main.py
+```
+
+### Troubleshooting
+- **`Access denied for user 'root'@'localhost'`**: the MySQL credentials don't match. Make sure `.env` is saved, then check the password with `mysql -u root -p`. Also check that `DB_PASSWORD` isn't already set in your terminal (`$env:DB_PASSWORD` in PowerShell): values already in the environment take priority over `.env`. If it is set, open a new terminal.
+- **`ModuleNotFoundError`**: the virtual environment isn't active. Activate it (step 2) and try again.
+- **Port 8501 already in use**: another Streamlit instance is running. Stop it, or run with `--server.port 8502`.
 
 ## Main Streamlit Pages
 - `app/main.py` (entry/auth routing)
@@ -94,33 +134,20 @@ Sustainability Monitoring Hub is a Streamlit-based platform for company-level su
 - `app/pages/02_➕_Add_Activity.py`
 - `app/pages/03_📊_View_Data.py`
 - `app/pages/04_✅_Verify_Data.py`
-- `app/pages/05_⚙️_Admin_Panel.py`
-- `app/pages/06_👥_User_Management.py`
-- `app/pages/07_🏢_Company_Management.py`
-- `app/pages/08_📋_SEDG_Disclosure.py`
-- `app/pages/09_📝_ESG_Ready_Questionnaire.py`
+- `app/pages/05_🎯_Roadmap_Tracker.py`
+- `app/pages/06_⚙️_Manage_Emission_Factors.py`
+- `app/pages/07_📋_SEDG_Disclosure.py`
+- `app/pages/08_📝_ESG_Ready_Questionnaire.py`
+- `app/pages/09_📄_COSIRI.py`
 - `app/pages/10_📤_Document_Requests.py`
-- `app/pages/11_⚙️_Manage_Emission_Factors.py`
-- `app/pages/12_📄_COSIRI.py`
-- `app/pages/13_🎯_Roadmap_Tracker.py`
+- `app/pages/11_⚙️_Admin_Panel.py`
+- `app/pages/12_👥_User_Management.py`
+- `app/pages/13_🏢_Company_Management.py`
 
 ## Notes
-- The app title is now **Sustainability Monitoring Hub** (`app/main.py`).
+- The app title is **Sustainability Monitoring Hub** (`app/main.py`).
 - Most pages enforce company assignment/verification and role-based access before usage.
 - Reporting and verification workflows are integrated with cache-backed data access for performance.
 - Default factor dataset is bootstrapped via `python scripts/setup_ghg_factors.py`; you can then refine with custom factors per company.
-
-## Other beginner notes
-- When using Command Prompt (cmd) to start the application
-- Change directory first
-```bash
-"cd c:\Users\YOUR_USERNAME\YOUR_FOLDER_PATH\Sustainability-Monitoring-Hub-202602"
-```
-- Start the virtual environment
-```bash
-"c:\Users\YOUR_USERNAME\YOUR_FOLDER_PATH\Sustainability-Monitoring-Hub-202602\venv\Scripts\activate.bat"
-```
-- Then run the app
-```bash
-python -m streamlit run app/main.py
-```
+- `setup_db.py` also seeds a few sample categories (e.g. `S1-01`, `S2-01`) that overlap with the fuller set from `setup_ghg_factors.py` (e.g. `S1-FUEL`, `S2-ELECTRICITY`), so some category names such as "Business Travel" appear twice in dropdowns.
+- Passwords are stored as unsalted SHA-256 hashes. This is fine for local development; switch to bcrypt/argon2 before production use.

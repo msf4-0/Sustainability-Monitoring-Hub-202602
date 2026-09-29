@@ -8,6 +8,76 @@ import json
 from datetime import datetime
 from core.database import DatabaseManager
 
+# Every questionnaire answer and its default value (session keys are these
+# names prefixed with 'iesg_'). Only these fields are ever saved to or loaded
+# from the database, so page state such as the change-tracking snapshot can
+# never leak into response_data.
+IESG_DEFAULTS = {
+    # Section A: About The Company
+    'company_name': '',
+    'email': '',
+    'phone': '',
+    'location': 'W.P Kuala Lumpur',
+    'subsector': 'E&E',
+    'subsector_other': '',
+    'company_size': None,
+    'company_type': None,
+    'reporting_standard': [],
+    'reporting_standard_other': '',
+    'none_reason': [],
+    'none_reason_other': '',
+
+    # Section B: General Understanding of ESG
+    'q8_maturity': None,
+    'q9_stakeholders': [],
+    'q10_business_case': None,
+    'q11_esg_goals': None,
+    'q12_esg_leadership': None,
+    'q13_esg_reporting': None,
+    'q14_data_understanding': None,
+    'q15_esg_elements': None,
+    'q16_validation': None,
+
+    # Section C: Environment
+    'q17_carbon': None,
+    'q18_ghg': None,
+    'q19_water': None,
+    'q20_waste': None,
+    'q21_wastewater': None,
+    'q22_energy': None,
+    'q23_biodiversity': None,
+    'q24_eco_materials': None,
+    'q25_reforestation': None,
+
+    # Section D: Social
+    'q26_employee_involvement': None,
+    'q27_domestic_labour': None,
+    'q28_intl_labour': None,
+    'q29_equal_employment': None,
+    'q30_min_wage': None,
+    'q31_health_safety': None,
+    'q32_grievance': None,
+    'q33_upskilling': None,
+    'q34_community': None,
+
+    # Section E: Governance
+    'q35_board_leadership': None,
+    'q36_board_awareness': None,
+    'q37_strategy': None,
+    'q38_code_conduct': None,
+    'q39_anti_corruption': None,
+    'q40_whistleblower': None,
+    'q41_accounting': None,
+    'q42_data_privacy': None,
+}
+
+
+def default_iesg_value(field: str):
+    """Return a fresh default for a questionnaire field (lists are copied)."""
+    value = IESG_DEFAULTS[field]
+    return list(value) if isinstance(value, list) else value
+
+
 class IESGManager:
     """
     Manages IESG (iESG Ready Questionnaire) responses with database persistence.
@@ -29,11 +99,13 @@ class IESGManager:
             self._db = DatabaseManager()
         self.cache_ttl = 3600  # 1 hour
     
-    @st.cache_data(ttl=3600, show_spinner=False)
-    def load_iesg_responses(_self, company_id: int, assessment_period: str = "2024") -> dict:
+    def load_iesg_responses(self, company_id: int, assessment_period: str = "2024") -> dict:
         """
-        Load IESG responses from database with caching.
-        
+        Load IESG responses from database.
+
+        Not cached: saves don't invalidate a cache, so a cached result would
+        hide newly saved responses from other sessions.
+
         Args:
             company_id: Company ID
             assessment_period: Assessment period (e.g., "2024")
@@ -55,7 +127,7 @@ class IESGManager:
                 WHERE company_id = %s AND assessment_period = %s
                 LIMIT 1
             """
-            result = _self._db.fetch_one(query, (company_id, assessment_period))
+            result = self._db.fetch_one(query, (company_id, assessment_period))
             
             if result:
                 response_data = json.loads(result[0]) if isinstance(result[0], str) else result[0]
@@ -103,8 +175,10 @@ class IESGManager:
             ... )
         """
         try:
-            json_data = json.dumps(response_data)
-            
+            # Persist questionnaire answers only, never page/control state
+            answers = {k: v for k, v in response_data.items() if k in IESG_DEFAULTS}
+            json_data = json.dumps(answers)
+
             # Check if record exists
             check_query = """
                 SELECT id FROM iesg_responses 
@@ -338,72 +412,9 @@ def initialize_iesg_responses_session(company_id: int, assessment_period: str = 
         >>> from core.iesg_management import initialize_iesg_responses_session
         >>> initialize_iesg_responses_session(company_id=5, assessment_period="2024")
     """
-    from core.iesg_management import IESGManager  # Adjust import as needed
-    
     manager = IESGManager()
     loaded = manager.load_iesg_responses(company_id, assessment_period)
     
-    # Define all default values
-    defaults = {
-        # Section A: About The Company
-        'company_name': '',
-        'email': '',
-        'phone': '',
-        'location': 'W.P Kuala Lumpur',
-        'subsector': 'E&E',
-        'subsector_other': '',
-        'company_size': None,
-        'company_type': None,
-        'reporting_standard': [],
-        'reporting_standard_other': '',
-        'none_reason': [],
-        'none_reason_other': '',
-        
-        # Section B: General Understanding of ESG
-        'q8_maturity': None,
-        'q9_stakeholders': [],
-        'q10_business_case': None,
-        'q11_esg_goals': None,
-        'q12_esg_leadership': None,
-        'q13_esg_reporting': None,
-        'q14_data_understanding': None,
-        'q15_esg_elements': None,
-        'q16_validation': None,
-        
-        # Section C: Environment
-        'q17_carbon': None,
-        'q18_ghg': None,
-        'q19_water': None,
-        'q20_waste': None,
-        'q21_wastewater': None,
-        'q22_energy': None,
-        'q23_biodiversity': None,
-        'q24_eco_materials': None,
-        'q25_reforestation': None,
-        
-        # Section D: Social
-        'q26_employee_involvement': None,
-        'q27_domestic_labour': None,
-        'q28_intl_labour': None,
-        'q29_equal_employment': None,
-        'q30_min_wage': None,
-        'q31_health_safety': None,
-        'q32_grievance': None,
-        'q33_upskilling': None,
-        'q34_community': None,
-        
-        # Section E: Governance
-        'q35_board_leadership': None,
-        'q36_board_awareness': None,
-        'q37_strategy': None,
-        'q38_code_conduct': None,
-        'q39_anti_corruption': None,
-        'q40_whistleblower': None,
-        'q41_accounting': None,
-        'q42_data_privacy': None,
-    }
-    
-    # CRITICAL FIX: Check if loaded is valid and has data
     data_loaded = False
     
     if loaded is not None and isinstance(loaded, dict) and 'data' in loaded:
@@ -411,12 +422,13 @@ def initialize_iesg_responses_session(company_id: int, assessment_period: str = 
         
         # Make sure loaded_data is not None and is a dict
         if loaded_data is not None and isinstance(loaded_data, dict):
-            # SUCCESS: We have data from database
-            # Force update ALL session state values with database data
-            for key, value in loaded_data.items():
-                session_key = f'iesg_{key}'
-                # CRITICAL: Always set the value, even if it's None, empty string, or empty list
-                st.session_state[session_key] = value
+            # Set every questionnaire field from the database, falling back to
+            # the default for fields the saved data doesn't have. Anything else
+            # in the saved data (e.g. page state persisted by older versions)
+            # is ignored.
+            for key in IESG_DEFAULTS:
+                value = loaded_data[key] if key in loaded_data else default_iesg_value(key)
+                st.session_state[f'iesg_{key}'] = value
             
             data_loaded = True
             
@@ -428,11 +440,11 @@ def initialize_iesg_responses_session(company_id: int, assessment_period: str = 
     
     # If no data was loaded, initialize with defaults
     if not data_loaded:
-        for key, default_value in defaults.items():
+        for key in IESG_DEFAULTS:
             session_key = f'iesg_{key}'
             # Only set if not already in session state
             if session_key not in st.session_state:
-                st.session_state[session_key] = default_value
+                st.session_state[session_key] = default_iesg_value(key)
         
         st.session_state['iesg_responses_loaded'] = False
         st.session_state['iesg_form_status'] = 'draft'

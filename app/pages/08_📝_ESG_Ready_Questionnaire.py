@@ -14,7 +14,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.permissions import check_page_permission, show_permission_badge
 from core.cache import get_company_info
 from components.company_verification import enforce_company_verification
-from core.iesg_management import IESGAutoSave, initialize_iesg_responses_session, show_iesg_unsaved_warning
+from core.iesg_management import (
+    IESG_DEFAULTS, IESGAutoSave, default_iesg_value,
+    initialize_iesg_responses_session, show_iesg_unsaved_warning,
+)
 
 # Check permissions
 check_page_permission('08_📝_ESG_Ready_Questionnaire.py')
@@ -48,99 +51,22 @@ if st.session_state.pop('iesg_force_refresh', False):
     for key in keys_to_clear:
         del st.session_state[key]
     st.session_state.pop('iesg_loaded_context', None)
-    st.cache_data.clear()
 
-# Debug info (remove after testing)
-with st.expander("🔍 Debug Info"):
-    st.write(f"iesg_responses_loaded: {st.session_state.get('iesg_responses_loaded', 'NOT SET')}")
-    st.write(f"Company ID: {st.session_state.get('company_id', 'NOT SET')}")
-    iesg_keys = [k for k in st.session_state.keys() if k.startswith('iesg_')]
-    st.write(f"Number of iesg_ keys in session: {len(iesg_keys)}")
-    
-    # Check what the manager actually returned
-    from core.iesg_management import IESGManager
-    manager = IESGManager()
-    test_load = manager.load_iesg_responses(st.session_state.get('company_id'), "2024")
-    st.write(f"Raw database response:")
-    st.json(test_load)
-    
-    if len(iesg_keys) > 0:
-        st.write(f"Sample values from session state:")
-        st.write(f"- iesg_company_name: {st.session_state.get('iesg_company_name', 'NOT SET')}")
-        st.write(f"- iesg_phone: {st.session_state.get('iesg_phone', 'NOT SET')}")
-        st.write(f"- iesg_q8_maturity: {st.session_state.get('iesg_q8_maturity', 'NOT SET')}")
-        st.write(f"- iesg_q17_carbon: {st.session_state.get('iesg_q17_carbon', 'NOT SET')}")
+# Copy of the answers kept outside widget state. Streamlit deletes a widget's
+# session value on any run where the widget isn't rendered (e.g. while the user
+# is on another page), so without this copy the answers would come back blank.
+ANSWERS_KEY = 'iesg_answers'
 
-# Initialize session state defaults FIRST (before database load)
-def init_iesg_defaults():
-    """Initialize default values for all fields"""
-    prefix = 'iesg_'
-    defaults = {
-        # Section A: About The Company
-        f'{prefix}company_name': '',
-        f'{prefix}email': '',
-        f'{prefix}phone': '',
-        f'{prefix}location': 'W.P Kuala Lumpur',
-        f'{prefix}subsector': 'E&E',
-        f'{prefix}subsector_other': '',
-        f'{prefix}company_size': None,
-        f'{prefix}company_type': None,
-        f'{prefix}reporting_standard': [],
-        f'{prefix}reporting_standard_other': '',
-        f'{prefix}none_reason': [],
-        f'{prefix}none_reason_other': '',
-        
-        # Section B: General Understanding of ESG
-        f'{prefix}q8_maturity': None,
-        f'{prefix}q9_stakeholders': [],
-        f'{prefix}q10_business_case': None,
-        f'{prefix}q11_esg_goals': None,
-        f'{prefix}q12_esg_leadership': None,
-        f'{prefix}q13_esg_reporting': None,
-        f'{prefix}q14_data_understanding': None,
-        f'{prefix}q15_esg_elements': None,
-        f'{prefix}q16_validation': None,
-        
-        # Section C: Environment
-        f'{prefix}q17_carbon': None,
-        f'{prefix}q18_ghg': None,
-        f'{prefix}q19_water': None,
-        f'{prefix}q20_waste': None,
-        f'{prefix}q21_wastewater': None,
-        f'{prefix}q22_energy': None,
-        f'{prefix}q23_biodiversity': None,
-        f'{prefix}q24_eco_materials': None,
-        f'{prefix}q25_reforestation': None,
-        
-        # Section D: Social
-        f'{prefix}q26_employee_involvement': None,
-        f'{prefix}q27_domestic_labour': None,
-        f'{prefix}q28_intl_labour': None,
-        f'{prefix}q29_equal_employment': None,
-        f'{prefix}q30_min_wage': None,
-        f'{prefix}q31_health_safety': None,
-        f'{prefix}q32_grievance': None,
-        f'{prefix}q33_upskilling': None,
-        f'{prefix}q34_community': None,
-        
-        # Section E: Governance
-        f'{prefix}q35_board_leadership': None,
-        f'{prefix}q36_board_awareness': None,
-        f'{prefix}q37_strategy': None,
-        f'{prefix}q38_code_conduct': None,
-        f'{prefix}q39_anti_corruption': None,
-        f'{prefix}q40_whistleblower': None,
-        f'{prefix}q41_accounting': None,
-        f'{prefix}q42_data_privacy': None,
-    }
-    
-    # Only set defaults for keys that don't exist
-    for key, val in defaults.items():
+def restore_iesg_answers():
+    """Restore any widget values Streamlit cleared, else use defaults"""
+    answers = st.session_state.get(ANSWERS_KEY, {})
+    for field in IESG_DEFAULTS:
+        key = f'iesg_{field}'
         if key not in st.session_state:
-            st.session_state[key] = val
+            st.session_state[key] = answers[field] if field in answers else default_iesg_value(field)
 
-# Step 1: Initialize defaults first
-init_iesg_defaults()
+# Step 1: Restore answers from this session (or defaults) before the database load
+restore_iesg_answers()
 
 # Step 2: Load from database ONCE per company/period context
 # Avoid reloading on every rerun, which would overwrite in-progress edits.
@@ -158,19 +84,16 @@ if company_id:
         )
         st.session_state['iesg_loaded_context'] = current_context
 
-        # Verify we actually have data by checking key fields
-        has_actual_data = any([
-            st.session_state.get('iesg_company_name', ''),
-            st.session_state.get('iesg_phone', ''),
-            st.session_state.get('iesg_q8_maturity') is not None,
-        ])
-
-        if data_loaded and has_actual_data:
+        if data_loaded:
             st.success("✅ **Form loaded from database** - Your previous responses have been restored.")
-        elif not has_actual_data:
-            st.warning("⚠️ **Data load issue detected** - Check Debug Info below")
         else:
             st.info("📋 **New form** - Start filling in your ESG assessment.")
+
+    # Auto-fill company name/email (read-only fields) from the company record
+    company = get_company_info(company_id) or {}
+    if company:
+        st.session_state['iesg_company_name'] = company.get('company_name') or ''
+        st.session_state['iesg_email'] = company.get('contact_email') or ''
 else:
     st.warning("⚠️ No company ID found in session state")
 
@@ -487,7 +410,7 @@ with tab2:
         "The Organization has a solid selected ESG programs in place across some elements of E, S and G",
         "The Organization has a comprehensive ESG program in place that covers appropriately and completely all areas of E, S and G that have been determined to the of importance to the Organization and its stakeholders based on the ESG strategy"
     ]
-    st.radio("Select one", options=elements, key='iesg_q15_esg_elements')
+    st.radio("Select one", options=elements, key='iesg_q15_esg_elements', index=None)
     
     st.divider()
     
@@ -499,7 +422,7 @@ with tab2:
         "The Organization has its external ESG reporting verified/audited by an external auditor",
         "The Organization has its public communications and reporting on ESG independently reviewed and verified by an external specialised company"
     ]
-    st.radio("Select one", options=validation, key='iesg_q16_validation')
+    st.radio("Select one", options=validation, key='iesg_q16_validation', index=None)
 
 # ============================================================================
 # SECTION C: ENVIRONMENT
@@ -1071,24 +994,15 @@ auto_save = IESGAutoSave(st.session_state.get('company_id'), assessment_period="
 
 # Collect all response data for saving
 def get_all_iesg_responses():
-    """Collect all iesg_* fields from session state, excluding metadata"""
-    responses = {}
-    # List of metadata keys to exclude
-    metadata_keys = {
-        'iesg_initialized', 'iesg_responses_loaded', 'iesg_form_status', 
-        'iesg_completion_score', 'iesg_unsaved_changes', 'iesg_last_save', 
-        'iesg_auto_save_status', 'iesg_score', 'iesg_max_score', 'iesg_percentage'
+    """Collect the questionnaire answers from session state (without the 'iesg_' prefix)"""
+    return {
+        field: st.session_state.get(f'iesg_{field}', default_iesg_value(field))
+        for field in IESG_DEFAULTS
     }
-    
-    for key, value in st.session_state.items():
-        if key.startswith('iesg_') and key not in metadata_keys and not key.startswith('iesg_responses_') and not key.startswith('iesg_unsaved_') and not key.startswith('iesg_form_'):
-            # Remove the 'iesg_' prefix for database storage
-            clean_key = key.replace('iesg_', '')
-            responses[clean_key] = value
-    return responses
 
 # Real-time change tracking (without forcing DB reload)
 current_iesg_responses = get_all_iesg_responses()
+st.session_state[ANSWERS_KEY] = current_iesg_responses
 current_iesg_snapshot = json.dumps(current_iesg_responses, sort_keys=True, default=str)
 previous_iesg_snapshot = st.session_state.get('iesg_last_snapshot')
 

@@ -160,3 +160,7 @@ python scripts\migrate_cosiri_file_content.py      # adds cosiri_documents.file_
 - Default factor dataset is bootstrapped via `python scripts/setup_ghg_factors.py`; you can then refine with custom factors per company.
 - `setup_db.py` also seeds a few sample categories (e.g. `S1-01`, `S2-01`) that overlap with the fuller set from `setup_ghg_factors.py` (e.g. `S1-FUEL`, `S2-ELECTRICITY`), so some category names such as "Business Travel" appear twice in dropdowns.
 - Passwords are stored as unsalted SHA-256 hashes. This is fine for local development; switch to bcrypt/argon2 before production use.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
